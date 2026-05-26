@@ -1,0 +1,13 @@
+{
+  "/_global-error/page": "app/_global-error/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/admin/page": "app/admin/page.js",
+  "/api/admin/bookings/route": "app/api/admin/bookings/route.js",
+  "/api/admin/login/route": "app/api/admin/login/route.js",
+  "/api/bookings/[id]/cancel/route": "app/api/bookings/[id]/cancel/route.js",
+  "/api/bookings/[id]/reschedule/route": "app/api/bookings/[id]/reschedule/route.js",
+  "/api/bookings/availability/route": "app/api/bookings/availability/route.js",
+  "/api/bookings/by-email/route": "app/api/bookings/by-email/route.js",
+  "/api/bookings/route": "app/api/bookings/route.js",
+  "/page": "app/page.js"
+}

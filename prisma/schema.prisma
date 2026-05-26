@@ -1,0 +1,27 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Booking {
+  id                String    @id @default(uuid())
+  name              String
+  email             String
+  phone             String?
+  date              String    // YYYY-MM-DD
+  time              String    // HH:MM (ej: 12:00, 12:45)
+  status            String    @default("reserved") // "reserved", "cancelled", "rescheduled"
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  cancelledAt       DateTime?
+  rescheduledFromId String?
+  rescheduledFrom   Booking?  @relation("RescheduleHistory", fields: [rescheduledFromId], references: [id])
+  rescheduledTo     Booking[] @relation("RescheduleHistory")
+}
