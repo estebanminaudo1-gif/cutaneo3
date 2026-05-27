@@ -16,7 +16,10 @@ model Booking {
   email             String
   phone             String?
   date              String    // YYYY-MM-DD
-  time              String    // HH:MM (ej: 12:00, 12:45)
+  time              String    // HH:MM (ej: 12:30)
+  gender            String    // "hombre" | "mujer"
+  zone              String    // Zona anatómica
+  duration          Int       @default(30) // Duración en minutos (30 o 120)
   status            String    @default("reserved") // "reserved", "cancelled", "rescheduled"
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt

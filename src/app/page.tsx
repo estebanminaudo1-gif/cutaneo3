@@ -22,19 +22,45 @@ import {
   Filter,
   CheckSquare,
   AlertTriangle,
-  Database
+  Database,
+  Sparkles,
+  UserCheck
 } from "lucide-react";
 
-// Turnos fijos de 45 minutos (coincide con el backend)
-const SLOTS = ["12:00", "12:45", "13:30", "14:15", "15:00", "15:45", "16:30", "17:15", "18:00"];
+// Turnos fijos de 30 minutos (coincide con el backend)
+const SLOTS = [
+  "12:00", "12:30", "13:00", "13:30", 
+  "14:00", "14:30", "15:00", "15:30", 
+  "16:00", "16:30", "17:00", "17:30", 
+  "18:00", "18:30"
+];
 const ALLOWED_DAYS = [1, 2, 4, 5];
+
+const MEN_ZONES = [
+  "Frente", "Entrecejo", "Patilla", "Zona Malar", "Barba", "Candado", "Bigote", 
+  "Mentón", "Cuello", "Nuca", "Pabellón de Oreja", "Brazo Entero", "Antebrazo", 
+  "Hombros", "Axilas", "Espalda Completa", "Espalda Terci Super", "Zona Lumbar", 
+  "Pectoral", "Abdomen", "Tira Abdominal", "Cavado C/Tira", "Cavado Simple", 
+  "Pierna Entera", "½ Pierna/C Rodilla", "Muslo", "Pies", "Manos", "Cuerpo entero"
+];
+
+const WOMEN_ZONES = [
+  "Axilas", "Cavado Común", "½ Glúteo", "Glúteo Completo", "Muslo", "½ Pierna", 
+  "Pierna Entera", "Antebrazo", "Brazo Entero", "Abdomen", "Tira Abdominal", 
+  "Línea Intermamaria", "Bozo", "Mentón", "Patilla", "Cuello", "Nuca", 
+  "Entrecejo", "Zona Lumbar", "Pies", "Manos", "Cuerpo entero"
+];
 
 export default function ClientApp() {
   // Navegación principal: 'home' | 'booking' | 'manage' | 'admin'
   const [view, setView] = useState<"home" | "booking" | "manage" | "admin">("home");
 
   // --- Estados de Reserva ---
-  const [bookingStep, setBookingStep] = useState(1); // 1: Fecha y Hora, 2: Formulario, 3: Éxito
+  // Step 1: Pregunta Tratamiento | Step 2: Género y Zona | Step 3: Fecha y Hora | Step 4: Datos Cliente | Step 5: Éxito
+  const [bookingStep, setBookingStep] = useState(1); 
+  const [knowsTreatment, setKnowsTreatment] = useState<boolean | null>(null);
+  const [selectedGender, setSelectedGender] = useState<"hombre" | "mujer" | "">("");
+  const [selectedZone, setSelectedZone] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<string>(""); // YYYY-MM-DD
   const [selectedTime, setSelectedTime] = useState<string>(""); // HH:MM
   const [availableSlots, setAvailableSlots] = useState<{ time: string; available: boolean }[]>([]);
@@ -78,7 +104,7 @@ export default function ClientApp() {
   const [submittingReschedule, setSubmittingReschedule] = useState(false);
   const [rescheduleError, setRescheduleError] = useState("");
 
-  // --- Calendario Interactivo ---
+  // --- Calendario Interactivo mes de navegación ---
   const [currentMonthDate, setCurrentMonthDate] = useState(new Date());
 
   // Cargar token del localStorage al iniciar
@@ -90,17 +116,17 @@ export default function ClientApp() {
     }
   }, []);
 
-  // Cargar disponibilidad cliente
+  // Cargar disponibilidad cliente (Step 3) cuando cambia fecha y zona
   useEffect(() => {
-    if (selectedDate && view === "booking") {
-      fetchAvailability(selectedDate);
+    if (selectedDate && view === "booking" && bookingStep === 3) {
+      fetchAvailability(selectedDate, selectedZone);
     }
-  }, [selectedDate, view]);
+  }, [selectedDate, view, bookingStep, selectedZone]);
 
-  // Cargar disponibilidad para reprogramación cliente
+  // Cargar disponibilidad para reprogramación cliente cuando cambia la fecha
   useEffect(() => {
     if (rescheduleDate && showRescheduleModal) {
-      fetchRescheduleAvailability(rescheduleDate);
+      fetchRescheduleAvailability(rescheduleDate, showRescheduleModal.zone);
     }
   }, [rescheduleDate, showRescheduleModal]);
 
@@ -111,12 +137,12 @@ export default function ClientApp() {
     }
   }, [view, isAdminLoggedIn, adminToken, adminFilterStatus, adminFilterDate]);
 
-  const fetchAvailability = async (date: string) => {
+  const fetchAvailability = async (date: string, zone: string) => {
     setLoadingSlots(true);
     setSelectedTime("");
     setBookingError("");
     try {
-      const res = await fetch(`/api/bookings/availability?date=${date}`);
+      const res = await fetch(`/api/bookings/availability?date=${date}&zone=${encodeURIComponent(zone)}`);
       const data = await res.json();
       if (res.ok) {
         setAvailableSlots(data.availability);
@@ -130,12 +156,12 @@ export default function ClientApp() {
     }
   };
 
-  const fetchRescheduleAvailability = async (date: string) => {
+  const fetchRescheduleAvailability = async (date: string, zone: string) => {
     setLoadingRescheduleSlots(true);
     setRescheduleTime("");
     setRescheduleError("");
     try {
-      const res = await fetch(`/api/bookings/availability?date=${date}`);
+      const res = await fetch(`/api/bookings/availability?date=${date}&zone=${encodeURIComponent(zone)}`);
       const data = await res.json();
       if (res.ok) {
         setRescheduleSlots(data.availability);
@@ -185,12 +211,14 @@ export default function ClientApp() {
           phone: bookingPhone,
           date: selectedDate,
           time: selectedTime,
+          gender: selectedGender,
+          zone: selectedZone
         }),
       });
       const data = await res.json();
       if (res.ok) {
         setSuccessBooking(data.booking);
-        setBookingStep(3);
+        setBookingStep(5); // Avanzar a Éxito final
         setBookingName("");
         setBookingEmail("");
         setBookingPhone("");
@@ -326,7 +354,7 @@ export default function ClientApp() {
     }
   };
 
-  // Helper fechas legible
+  // Helper fechas legibles
   const formatDateReadable = (dateStr: string) => {
     if (!dateStr) return "";
     const [year, month, day] = dateStr.split("-").map(Number);
@@ -424,14 +452,14 @@ export default function ClientApp() {
       {/* HEADER / NAVBAR */}
       <header className="border-b border-[#e0deda]/40 bg-white/70 backdrop-blur-md sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="cursor-pointer" onClick={() => { setView("home"); setBookingStep(1); }}>
+          <div className="cursor-pointer" onClick={() => { setView("home"); setBookingStep(1); setKnowsTreatment(null); }}>
             <Logo className="h-9 w-auto" />
           </div>
           
           <nav className="flex items-center gap-4 md:gap-6">
             {view !== "home" && (
               <button 
-                onClick={() => { setView("home"); setBookingStep(1); }}
+                onClick={() => { setView("home"); setBookingStep(1); setKnowsTreatment(null); }}
                 className="text-xs uppercase tracking-widest text-gray-500 hover:text-black transition-colors"
               >
                 Inicio
@@ -440,7 +468,7 @@ export default function ClientApp() {
             
             {view !== "booking" && view !== "admin" ? (
               <button
-                onClick={() => { setView("booking"); setBookingStep(1); }}
+                onClick={() => { setView("booking"); setBookingStep(1); setKnowsTreatment(null); }}
                 className="text-xs uppercase tracking-widest bg-black text-[#faf9f6] px-4 py-2 hover:bg-neutral-800 transition-all rounded-sm font-medium"
               >
                 Reservar Turno
@@ -507,18 +535,20 @@ export default function ClientApp() {
             </div>
           )}
 
-          {/* 2. RESERVA VIEW */}
+          {/* 2. RESERVA VIEW (5-STEP WIZARD) */}
           {view === "booking" && (
             <div className="bg-white/95 rounded-md border border-[#e0deda]/40 shadow-xl max-w-2xl mx-auto p-6 md:p-8 animate-fade-in">
               <div className="flex items-center justify-between border-b border-gray-100 pb-5 mb-8">
                 <div>
                   <h2 className="text-lg font-light tracking-widest uppercase text-black">Nuevo Turno</h2>
-                  <p className="text-xs text-gray-400 mt-1 font-light">Depilación Profesional</p>
+                  <p className="text-xs text-gray-400 mt-1 font-light">Depilación Avanzada</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className={`h-2 w-8 rounded-full transition-all duration-300 ${bookingStep >= 1 ? "bg-black" : "bg-gray-100"}`}></div>
-                  <div className={`h-2 w-8 rounded-full transition-all duration-300 ${bookingStep >= 2 ? "bg-black" : "bg-gray-100"}`}></div>
-                  <div className={`h-2 w-8 rounded-full transition-all duration-300 ${bookingStep >= 3 ? "bg-black" : "bg-gray-100"}`}></div>
+                  <div className={`h-2 w-5 rounded-full transition-all duration-300 ${bookingStep >= 1 ? "bg-black" : "bg-gray-100"}`}></div>
+                  <div className={`h-2 w-5 rounded-full transition-all duration-300 ${bookingStep >= 2 ? "bg-black" : "bg-gray-100"}`}></div>
+                  <div className={`h-2 w-5 rounded-full transition-all duration-300 ${bookingStep >= 3 ? "bg-black" : "bg-gray-100"}`}></div>
+                  <div className={`h-2 w-5 rounded-full transition-all duration-300 ${bookingStep >= 4 ? "bg-black" : "bg-gray-100"}`}></div>
+                  <div className={`h-2 w-5 rounded-full transition-all duration-300 ${bookingStep >= 5 ? "bg-black" : "bg-gray-100"}`}></div>
                 </div>
               </div>
 
@@ -526,9 +556,174 @@ export default function ClientApp() {
                 <div className="bg-red-50/75 border-l-[3px] border-red-500 text-red-700 text-xs p-4 rounded-sm mb-6 font-light">{bookingError}</div>
               )}
 
+              {/* PASO 1: CONOCIMIENTO DEL TRATAMIENTO */}
               {bookingStep === 1 && (
+                <div className="space-y-6 animate-fade-in text-center py-4">
+                  <h3 className="text-base uppercase tracking-widest text-black font-light mb-6">¿Conoces nuestro tratamiento de depilación?</h3>
+                  
+                  {knowsTreatment === null ? (
+                    <div className="flex flex-col sm:flex-row justify-center gap-4 max-w-sm mx-auto">
+                      <button
+                        type="button"
+                        onClick={() => setBookingStep(2)}
+                        className="flex-1 border border-neutral-300 text-neutral-800 text-xs uppercase tracking-widest font-medium py-4 px-6 hover:bg-neutral-50 active:scale-95 transition-all rounded-sm"
+                      >
+                        Sí, lo conozco
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setKnowsTreatment(false)}
+                        className="flex-1 bg-black text-[#faf9f6] text-xs uppercase tracking-widest font-medium py-4 px-6 hover:bg-neutral-800 active:scale-95 transition-all rounded-sm"
+                      >
+                        No lo conozco
+                      </button>
+                    </div>
+                  ) : (
+                    // Mostrar Información Titanium
+                    <div className="space-y-6 max-w-md mx-auto text-left animate-fade-in">
+                      <div className="border border-neutral-200 bg-[#faf9f6] p-6 rounded-sm space-y-4">
+                        <div className="flex items-center gap-2 text-black">
+                          <Sparkles size={18} className="text-amber-500" />
+                          <h4 className="font-medium tracking-widest uppercase text-xs">Tecnología Titanium</h4>
+                        </div>
+                        <p className="text-xs text-neutral-600 font-light leading-relaxed">
+                          Nuestra depilación **Titanium** combina tres longitudes de onda altamente efectivas en un solo cabezal. Esto permite tratar de manera simultánea diferentes profundidades del folículo piloso, logrando un tratamiento más rápido, completamente seguro y prácticamente indoloro en cualquier tipo de piel, incluso bronceada.
+                        </p>
+                        <p className="text-[10px] text-gray-400 italic font-light">
+                          * Nota: Al presionar "Aceptar", confirmas que has leído y aceptas los detalles informativos de Titanium para continuar con la reserva de tu turno.
+                        </p>
+                      </div>
+
+                      <div className="flex gap-4">
+                        <button
+                          type="button"
+                          onClick={() => setKnowsTreatment(null)}
+                          className="flex-1 border border-neutral-200 text-neutral-600 text-xs uppercase tracking-widest font-medium py-3 rounded-sm hover:bg-neutral-50 transition-colors"
+                        >
+                          Volver
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBookingStep(2)}
+                          className="flex-1 bg-black text-white text-xs uppercase tracking-widest font-medium py-3 rounded-sm hover:bg-neutral-800 transition-colors"
+                        >
+                          Aceptar y Continuar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* PASO 2: GÉNERO Y SELECCIÓN DE ZONA */}
+              {bookingStep === 2 && (
+                <div className="space-y-6 animate-fade-in">
+                  
+                  {/* Selector de Género */}
+                  <div className="space-y-3">
+                    <label className="block text-xs uppercase tracking-widest text-neutral-500 font-medium flex items-center gap-1.5">
+                      <UserCheck size={14} /> 1. ¿Para quién es el turno?
+                    </label>
+                    <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedGender("mujer"); setSelectedZone(""); }}
+                        className={`py-3.5 text-xs uppercase tracking-widest border rounded-sm font-light transition-all ${
+                          selectedGender === "mujer" 
+                            ? "bg-black border-black text-white font-medium" 
+                            : "bg-white hover:bg-neutral-50 border-neutral-200 text-neutral-700"
+                        }`}
+                      >
+                        Mujer
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedGender("hombre"); setSelectedZone(""); }}
+                        className={`py-3.5 text-xs uppercase tracking-widest border rounded-sm font-light transition-all ${
+                          selectedGender === "hombre" 
+                            ? "bg-black border-black text-white font-medium" 
+                            : "bg-white hover:bg-neutral-50 border-neutral-200 text-neutral-700"
+                        }`}
+                      >
+                        Hombre
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Selector de Zona Anatómica */}
+                  {selectedGender !== "" && (
+                    <div className="space-y-3 animate-fade-in">
+                      <label className="block text-xs uppercase tracking-widest text-neutral-500 font-medium flex items-center gap-1.5">
+                        <Sparkles size={14} /> 2. Seleccione la parte a depilar
+                      </label>
+                      
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 overflow-y-auto max-h-56 border border-neutral-100 p-3 bg-neutral-50/50 rounded-sm pr-1">
+                        {(selectedGender === "hombre" ? MEN_ZONES : WOMEN_ZONES).map((zone) => (
+                          <button
+                            key={zone}
+                            type="button"
+                            onClick={() => setSelectedZone(zone)}
+                            className={`py-2 px-2 text-[11px] tracking-wide rounded-sm border transition-all text-left truncate flex justify-between items-center ${
+                              selectedZone === zone
+                                ? "bg-black border-black text-white font-normal"
+                                : "bg-white hover:bg-neutral-50 border-neutral-200 text-neutral-700 font-light"
+                            }`}
+                          >
+                            <span>{zone}</span>
+                            {zone === "Cuerpo entero" && (
+                              <span className={`text-[8px] px-1 py-0.5 rounded-full ${selectedZone === zone ? "bg-amber-500 text-black font-bold" : "bg-amber-100 text-amber-800"}`}>2 hs</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Botones de navegación */}
+                  <div className="flex items-center justify-between pt-6 border-t border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => { setBookingStep(1); setKnowsTreatment(null); }}
+                      className="flex items-center gap-2 text-xs uppercase tracking-[0.15em] text-gray-500 hover:text-black font-medium transition-colors"
+                    >
+                      <ArrowLeft size={14} /> Volver
+                    </button>
+                    
+                    <button
+                      type="button"
+                      disabled={!selectedGender || !selectedZone}
+                      onClick={() => setBookingStep(3)}
+                      className={`flex items-center gap-2 text-xs uppercase tracking-[0.15em] font-medium px-6 py-3 rounded-sm transition-all ${
+                        selectedGender && selectedZone ? "bg-black text-white hover:bg-neutral-800" : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      }`}
+                    >
+                      Continuar <ChevronRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* PASO 3: SELECCIÓN DE FECHA Y HORA */}
+              {bookingStep === 3 && (
                 <div className="space-y-8 animate-fade-in">
+                  
+                  {/* Resumen del servicio */}
+                  <div className="bg-gray-50 p-4 border border-gray-100 rounded-sm flex items-center justify-between text-xs">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-gray-500 font-light">
+                        <UserCheck size={13} />
+                        <span>Cliente: <strong className="font-normal uppercase text-black">{selectedGender}</strong></span>
+                      </div>
+                      <div className="flex items-center gap-2 text-gray-500 font-light">
+                        <Sparkles size={13} />
+                        <span>Zona: <strong className="font-normal text-black">{selectedZone}</strong> {selectedZone === "Cuerpo entero" ? "(Duración: 2 horas)" : "(Duración: 30 min)"}</span>
+                      </div>
+                    </div>
+                    <button type="button" onClick={() => setBookingStep(2)} className="text-gray-400 hover:text-black text-xs border-b border-gray-200 hover:border-black font-light pb-[1px]">Cambiar</button>
+                  </div>
+
                   <div className="grid md:grid-cols-2 gap-8">
+                    {/* Calendario */}
                     <div>
                       <label className="block text-xs uppercase tracking-widest font-medium text-gray-500 mb-4 flex items-center gap-2">
                         <CalendarIcon size={14} /> 1. Seleccione Día
@@ -544,11 +739,13 @@ export default function ClientApp() {
                         </div>
                         <div className="grid grid-cols-7 gap-1 text-center">{renderCalendarDays()}</div>
                       </div>
+                      <p className="text-[10px] text-gray-400 mt-2 font-light leading-relaxed">* Atendemos Lunes, Martes, Jueves y Viernes.</p>
                     </div>
 
+                    {/* Horarios */}
                     <div>
                       <label className="block text-xs uppercase tracking-widest font-medium text-gray-500 mb-4 flex items-center gap-2">
-                        <Clock size={14} /> 2. Seleccione Horario (45 min)
+                        <Clock size={14} /> 2. Horarios Disponibles
                       </label>
                       {!selectedDate ? (
                         <div className="h-48 border border-dashed border-gray-100 rounded-sm flex items-center justify-center bg-gray-50/30">
@@ -557,7 +754,7 @@ export default function ClientApp() {
                       ) : loadingSlots ? (
                         <div className="h-48 flex flex-col items-center justify-center gap-3">
                           <Loader2 className="animate-spin text-neutral-400" size={24} />
-                          <p className="text-xs text-gray-400 font-light">Buscando turnos libres...</p>
+                          <p className="text-xs text-gray-400 font-light">Buscando bloques libres...</p>
                         </div>
                       ) : (
                         <div className="grid grid-cols-3 gap-2 overflow-y-auto max-h-56 pr-1">
@@ -583,11 +780,20 @@ export default function ClientApp() {
                     </div>
                   </div>
 
-                  <div className="flex justify-end pt-4 border-t border-gray-100">
+                  {/* Botones de navegación */}
+                  <div className="flex justify-between pt-6 border-t border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => setBookingStep(2)}
+                      className="flex items-center gap-2 text-xs uppercase tracking-[0.15em] text-gray-500 hover:text-black font-medium transition-colors"
+                    >
+                      <ArrowLeft size={14} /> Volver
+                    </button>
+                    
                     <button
                       type="button"
                       disabled={!selectedDate || !selectedTime}
-                      onClick={() => setBookingStep(2)}
+                      onClick={() => setBookingStep(4)}
                       className={`flex items-center gap-2 text-xs uppercase tracking-[0.15em] font-medium px-6 py-3 rounded-sm transition-all ${
                         selectedDate && selectedTime ? "bg-black text-white hover:bg-neutral-800" : "bg-gray-100 text-gray-400 cursor-not-allowed"
                       }`}
@@ -598,14 +804,28 @@ export default function ClientApp() {
                 </div>
               )}
 
-              {bookingStep === 2 && (
+              {/* PASO 4: FORMULARIO DE DATOS */}
+              {bookingStep === 4 && (
                 <form onSubmit={handleCreateBooking} className="space-y-6 animate-fade-in">
-                  <div className="bg-gray-50 p-4 border border-gray-100 rounded-sm flex items-center justify-between text-xs">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-gray-500 font-light"><CalendarIcon size={13} /><span>{formatDateReadable(selectedDate)}</span></div>
-                      <div className="flex items-center gap-2 text-gray-500 font-light"><Clock size={13} /><span>{selectedTime} hs (Duración: 45 min)</span></div>
+                  
+                  {/* Resumen del turno reservado */}
+                  <div className="bg-gray-50 p-4 border border-gray-100 rounded-sm text-xs space-y-1.5 font-light">
+                    <div className="flex justify-between border-b border-gray-200/50 pb-1.5">
+                      <span className="text-gray-500">Servicio para:</span>
+                      <strong className="font-normal uppercase text-black">{selectedGender}</strong>
                     </div>
-                    <button type="button" onClick={() => setBookingStep(1)} className="text-gray-400 hover:text-black text-xs border-b border-gray-200 hover:border-black font-light transition-all pb-[1px]">Cambiar</button>
+                    <div className="flex justify-between border-b border-gray-200/50 pb-1.5">
+                      <span className="text-gray-500">Zona seleccionada:</span>
+                      <strong className="font-normal text-black">{selectedZone} {selectedZone === "Cuerpo entero" ? "(Bloque 2hs)" : "(30m)"}</strong>
+                    </div>
+                    <div className="flex justify-between border-b border-gray-200/50 pb-1.5">
+                      <span className="text-gray-500">Fecha del turno:</span>
+                      <strong className="font-normal text-black">{formatDateReadable(selectedDate)}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Horario de inicio:</span>
+                      <strong className="font-normal text-black">{selectedTime} hs</strong>
+                    </div>
                   </div>
 
                   <div className="space-y-4">
@@ -635,7 +855,7 @@ export default function ClientApp() {
                   </div>
 
                   <div className="flex items-center justify-between pt-6 border-t border-gray-100">
-                    <button type="button" onClick={() => setBookingStep(1)} className="flex items-center gap-2 text-xs uppercase tracking-[0.15em] text-gray-500 hover:text-black font-medium"><ArrowLeft size={14} />Volver</button>
+                    <button type="button" onClick={() => setBookingStep(3)} className="flex items-center gap-2 text-xs uppercase tracking-[0.15em] text-gray-500 hover:text-black font-medium"><ArrowLeft size={14} />Volver</button>
                     <button type="submit" disabled={submittingBooking} className="bg-black text-white hover:bg-neutral-800 text-xs uppercase tracking-[0.15em] font-medium px-8 py-3.5 rounded-sm transition-all shadow-sm flex items-center gap-2">
                       {submittingBooking ? <><Loader2 className="animate-spin" size={14} />Procesando...</> : "Confirmar Reserva"}
                     </button>
@@ -643,21 +863,25 @@ export default function ClientApp() {
                 </form>
               )}
 
-              {bookingStep === 3 && successBooking && (
+              {/* PASO 5: ÉXITO FINAL */}
+              {bookingStep === 5 && successBooking && (
                 <div className="text-center py-8 space-y-6 animate-fade-in">
                   <div className="flex justify-center"><CheckCircle className="text-neutral-900 w-16 h-16 animate-bounce" /></div>
                   <div className="space-y-2">
                     <h3 className="text-xl font-normal tracking-wide text-black">¡Reserva Confirmada!</h3>
                     <p className="text-sm text-gray-500 font-light max-w-sm mx-auto">Tu turno ha quedado agendado en nuestro sistema.</p>
                   </div>
+                  
                   <div className="bg-gray-50 p-6 rounded-sm border border-gray-100 text-xs max-w-md mx-auto text-left space-y-3 font-light">
                     <div className="flex justify-between border-b border-gray-200 pb-2"><span className="text-gray-400">Cliente:</span><span className="font-normal text-black">{successBooking.name}</span></div>
-                    <div className="flex justify-between border-b border-gray-200 pb-2"><span className="text-gray-400">Email:</span><span className="font-normal text-black">{successBooking.email}</span></div>
+                    <div className="flex justify-between border-b border-gray-200 pb-2"><span className="text-gray-400">Género:</span><span className="font-normal uppercase text-black">{successBooking.gender}</span></div>
+                    <div className="flex justify-between border-b border-gray-200 pb-2"><span className="text-gray-400">Zona Elegida:</span><span className="font-normal text-black">{successBooking.zone}</span></div>
                     <div className="flex justify-between border-b border-gray-200 pb-2"><span className="text-gray-400">Fecha:</span><span className="font-normal text-black">{formatDateReadable(successBooking.date)}</span></div>
-                    <div className="flex justify-between pb-1"><span className="text-gray-400">Horario:</span><span className="font-normal text-black">{successBooking.time} hs (Duración 45m)</span></div>
+                    <div className="flex justify-between pb-1"><span className="text-gray-400">Horario:</span><span className="font-normal text-black">{successBooking.time} hs ({successBooking.duration} min)</span></div>
                   </div>
+
                   <div className="pt-6">
-                    <button onClick={() => { setView("home"); setBookingStep(1); }} className="bg-black text-[#faf9f6] text-xs uppercase tracking-widest font-medium px-8 py-3.5 hover:bg-neutral-800 transition-all rounded-sm shadow-sm">Volver al inicio</button>
+                    <button onClick={() => { setView("home"); setBookingStep(1); setKnowsTreatment(null); }} className="bg-black text-[#faf9f6] text-xs uppercase tracking-widest font-medium px-8 py-3.5 hover:bg-neutral-800 transition-all rounded-sm shadow-sm">Volver al inicio</button>
                   </div>
                 </div>
               )}
@@ -717,8 +941,15 @@ export default function ClientApp() {
                                 <span className="text-[10px] text-gray-400 font-light">ID: {booking.id.substring(0, 8)}...</span>
                               </div>
                               <div className="space-y-1 text-xs">
+                                <p className="text-neutral-500 font-light flex items-center gap-2">
+                                  <User size={13} className="text-gray-400" />
+                                  <span className="uppercase font-normal text-black">{booking.gender}</span> — <strong className="font-normal text-neutral-800">{booking.zone}</strong>
+                                  {booking.duration === 120 && (
+                                    <span className="text-[8px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded-full">2 hs</span>
+                                  )}
+                                </p>
                                 <p className="font-normal text-black flex items-center gap-2"><CalendarIcon size={13} className="text-gray-400" />{formatDateReadable(booking.date)}</p>
-                                <p className="text-gray-500 font-light flex items-center gap-2"><Clock size={13} className="text-gray-400" />{booking.time} hs (45 min)</p>
+                                <p className="text-gray-500 font-light flex items-center gap-2"><Clock size={13} className="text-gray-400" />{booking.time} hs ({booking.duration} min)</p>
                                 {booking.rescheduledFrom && (
                                   <p className="text-[10px] text-gray-400 font-light italic mt-1">Reprogramado del: {formatDateReadable(booking.rescheduledFrom.date)} a las {booking.rescheduledFrom.time} hs</p>
                                 )}
@@ -859,6 +1090,7 @@ export default function ClientApp() {
                             <tr className="bg-gray-50/75 border-b border-gray-100 text-[10px] uppercase tracking-widest text-gray-400 font-medium">
                               <th className="py-4 px-6">ID</th>
                               <th className="py-4 px-6">Cliente</th>
+                              <th className="py-4 px-6">Servicio / Zona</th>
                               <th className="py-4 px-6">Contacto</th>
                               <th className="py-4 px-6">Fecha Turno</th>
                               <th className="py-4 px-6">Horario</th>
@@ -871,6 +1103,18 @@ export default function ClientApp() {
                               <tr key={booking.id} className="hover:bg-gray-50/50 transition-colors">
                                 <td className="py-4 px-6 text-gray-400 font-mono text-[10px]">{booking.id.substring(0, 8)}...</td>
                                 <td className="py-4 px-6 font-normal text-black">{booking.name}</td>
+                                
+                                {/* Género y Zona */}
+                                <td className="py-4 px-6 space-y-0.5 text-neutral-600 font-normal">
+                                  <span className="uppercase text-[10px] text-gray-400 block font-light">{booking.gender}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span>{booking.zone}</span>
+                                    {booking.duration === 120 && (
+                                      <span className="text-[8px] bg-amber-50 border border-amber-200 text-amber-800 font-bold px-1.5 py-0.5 rounded-full">2 hs</span>
+                                    )}
+                                  </div>
+                                </td>
+
                                 <td className="py-4 px-6 space-y-0.5 text-gray-500">
                                   <span className="flex items-center gap-1.5"><Mail size={11} className="text-gray-300" />{booking.email}</span>
                                   {booking.phone && <span className="flex items-center gap-1.5 text-[10px]"><Phone size={11} className="text-gray-300" />{booking.phone}</span>}
@@ -907,7 +1151,7 @@ export default function ClientApp() {
         </div>
       </main>
 
-      {/* FOOTER - Subtly hides the admin access link */}
+      {/* FOOTER */}
       <footer className="border-t border-[#e0deda]/30 bg-white/40 py-6 text-center text-xs tracking-wider text-neutral-400 font-light">
         <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row justify-between items-center gap-3">
           <span>© {new Date().getFullYear()} CUTANEO. Todos los derechos reservados.</span>
@@ -920,6 +1164,7 @@ export default function ClientApp() {
                 setView("admin");
               }
               setBookingStep(1); 
+              setKnowsTreatment(null);
             }}
             className="text-[10px] text-neutral-300 hover:text-neutral-600 active:text-black select-none transition-all duration-300 font-mono cursor-pointer"
             title="Acceso restringido"
@@ -958,7 +1203,7 @@ export default function ClientApp() {
             <div className="flex justify-between items-start border-b border-gray-100 pb-3">
               <div>
                 <h4 className="text-sm uppercase tracking-widest font-medium text-black">Reprogramar Turno</h4>
-                <p className="text-[10px] text-gray-400 font-light mt-1">Selecciona una nueva fecha y hora para cambiar tu turno.</p>
+                <p className="text-[10px] text-gray-400 font-light mt-1">Selecciona una nueva fecha y hora para cambiar tu turno de <strong className="font-normal text-black">{showRescheduleModal.zone}</strong>.</p>
               </div>
               <button onClick={() => setShowRescheduleModal(null)} className="text-gray-400 hover:text-black transition-colors"><X size={16} /></button>
             </div>
@@ -985,7 +1230,7 @@ export default function ClientApp() {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] uppercase tracking-widest font-medium text-gray-500 mb-2 flex items-center gap-2"><Clock size={12} /> 2. Nuevo Horario (45 min)</label>
+                  <label className="block text-[10px] uppercase tracking-widest font-medium text-gray-500 mb-2 flex items-center gap-2"><Clock size={12} /> 2. Nuevo Horario {showRescheduleModal.zone === "Cuerpo entero" ? "(Bloque 2hs)" : "(30 min)"}</label>
                   {!rescheduleDate ? (
                     <div className="h-44 border border-dashed border-gray-100 rounded-sm flex items-center justify-center bg-gray-50/30">
                       <p className="text-[10px] text-gray-400 font-light">Selecciona un día primero</p>
