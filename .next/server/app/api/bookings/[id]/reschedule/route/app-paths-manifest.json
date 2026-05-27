@@ -1,3 +1,0 @@
-{
-  "/api/bookings/[id]/reschedule/route": "app/api/bookings/[id]/reschedule/route.js"
-}
