@@ -921,7 +921,7 @@ export default function ClientApp() {
               }
               setBookingStep(1); 
             }}
-            className="text-[9px] text-[#faf9f6]/10 hover:text-gray-400 active:text-black select-none transition-all duration-300 font-mono"
+            className="text-[10px] text-neutral-300 hover:text-neutral-600 active:text-black select-none transition-all duration-300 font-mono cursor-pointer"
             title="Acceso restringido"
           >
             • Acceso
