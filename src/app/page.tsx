@@ -756,6 +756,11 @@ export default function ClientApp() {
                           <Loader2 className="animate-spin text-neutral-400" size={24} />
                           <p className="text-xs text-gray-400 font-light">Buscando bloques libres...</p>
                         </div>
+                      ) : bookingError ? (
+                        <div className="h-48 border border-red-100 bg-red-50/30 rounded-sm flex flex-col items-center justify-center p-4 text-center">
+                          <p className="text-xs text-red-600 font-light mb-1">{bookingError}</p>
+                          <p className="text-[10px] text-gray-400 font-light">Verifica la conexión a la base de datos o el estado del servidor.</p>
+                        </div>
                       ) : (
                         <div className="grid grid-cols-3 gap-2 overflow-y-auto max-h-56 pr-1">
                           {availableSlots.map((slot) => (
@@ -1239,6 +1244,11 @@ export default function ClientApp() {
                     <div className="h-44 flex flex-col items-center justify-center gap-2">
                       <Loader2 className="animate-spin text-neutral-400" size={20} />
                       <p className="text-[10px] text-gray-400 font-light">Cargando disponibilidad...</p>
+                    </div>
+                  ) : rescheduleError ? (
+                    <div className="h-44 border border-red-100 bg-red-50/30 rounded-sm flex flex-col items-center justify-center p-4 text-center">
+                      <p className="text-[10px] text-red-600 font-light mb-1">{rescheduleError}</p>
+                      <p className="text-[8px] text-gray-400 font-light">Ocurrió un error al buscar disponibilidad.</p>
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-2 overflow-y-auto max-h-44 pr-1">
