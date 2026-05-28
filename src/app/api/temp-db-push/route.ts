@@ -12,10 +12,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    console.log("=== Ejecutando npx prisma db push desde Serverless Function ===");
+    console.log("=== Ejecutando prisma db push desde Serverless Function ===");
     
-    // Ejecutar prisma db push
-    const pushOutput = execSync("npx prisma db push --accept-data-loss", {
+    // Ejecutar prisma db push usando el binario instalado localmente para evitar npx
+    const pushOutput = execSync("node node_modules/prisma/build/index.js db push --accept-data-loss", {
       encoding: "utf-8",
       env: { ...process.env, HOME: "/tmp" }
     });
