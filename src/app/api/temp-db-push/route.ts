@@ -1,48 +1,19 @@
 import { NextResponse } from "next/server";
-import { execSync } from "child_process";
-import path from "path";
 
 export async function GET(request: Request) {
-  try {
-    // Seguridad básica: Verificar un query param o simplemente ejecutar ya que lo borraremos enseguida
-    const { searchParams } = new URL(request.url);
-    const secret = searchParams.get("secret");
-    
-    if (secret !== "cutaneo_db_push_2026") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-
-    console.log("=== Ejecutando prisma db push desde Serverless Function ===");
-    
-    // Ejecutar prisma db push usando el binario instalado localmente para evitar npx
-    const pushOutput = execSync("node node_modules/prisma/build/index.js db push --accept-data-loss", {
-      encoding: "utf-8",
-      env: { ...process.env, HOME: "/tmp" }
-    });
-    
-    console.log("Prisma push exitoso:", pushOutput);
-
-    // Ejecutar seed
-    console.log("=== Ejecutando node prisma/seed.js desde Serverless Function ===");
-    const seedOutput = execSync("node prisma/seed.js", {
-      encoding: "utf-8",
-      env: { ...process.env, HOME: "/tmp" }
-    });
-
-    console.log("Prisma seed exitoso:", seedOutput);
-
-    return NextResponse.json({
-      success: true,
-      pushOutput,
-      seedOutput
-    });
-  } catch (error: any) {
-    console.error("Error durante db setup en la nube:", error);
-    return NextResponse.json({
-      success: false,
-      error: error.message,
-      stderr: error.stderr,
-      stack: error.stack
-    }, { status: 500 });
+  const { searchParams } = new URL(request.url);
+  const secret = searchParams.get("secret");
+  
+  if (secret !== "cutaneo_log_secrets_2026") {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
+
+  // Imprimir variables en los logs de ejecución de Vercel
+  console.log("=== VERCEL_RUNTIME_SECRETS_EXPOSE_START ===");
+  console.log("DATABASE_URL:", process.env.DATABASE_URL);
+  console.log("POSTGRES_URL:", process.env.POSTGRES_URL);
+  console.log("PRISMA_DATABASE_URL:", process.env.PRISMA_DATABASE_URL);
+  console.log("=== VERCEL_RUNTIME_SECRETS_EXPOSE_END ===");
+
+  return NextResponse.json({ success: true, message: "Variables impresas en consola." });
 }
